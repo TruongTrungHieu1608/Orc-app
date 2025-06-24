@@ -169,8 +169,8 @@ def run_gui():
     #current_image = None
     #image_on_canvas = None
 
-    tk.Button(root, text='🧠 Nhận diện + Sinh mã', command=do_ocr).pack(pady=10)
-    tk.Label(root, text='📄 Kết quả (auto copy):', font=('Segoe UI',11,'bold'), fg='blue').pack()
+    tk.Button(root, text=' Nhận diện + Sinh mã', command=do_ocr).pack(pady=10)
+    tk.Label(root, text=' Kết quả (auto copy):', font=('Segoe UI',11,'bold'), fg='blue').pack()
     text_box = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=80, height=15, font=('Consolas',10))
     text_box.pack(padx=10, pady=10)
 
