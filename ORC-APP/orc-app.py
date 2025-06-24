@@ -10,7 +10,7 @@ import pyperclip
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # Bản đồ mã hóa chung
-TYPE_MAP = {"MDF": "M", "DĂM": "D", "HDF": "H", "VENEER": "V", "ACRYLIC": "A", "VAN DAN": "P"}
+TYPE_MAP = {"MDF": "M", "DĂM": "D", "HDF": "H", "VENEER": "V", "ACRYLIC": "A", "PLYWOOD": "P"}
 SUPPLIER_MAP = {"ML": "ML", "DA": "DA", "GC": "GC", "DW": "DW"}
 PROPERTY_MAP = {"HMR": "H", "THUONG": "A", "CHONG CHAY": "C", "MMR": "M", "CA": "H"}
 STANDARD_MAP = {"E0": "0", "E1": "1", "E2": "2", "CARP1": "3", "CARP2": "4"}
@@ -93,21 +93,34 @@ def extract_code_from_text(text):
     code += next((PROPERTY_MAP[k] for k in PROPERTY_MAP if k in parts), 'A')
     code += next((STANDARD_MAP[k] for k in STANDARD_MAP if k in parts), '1')
     code += next((SIZE_MAP[k] for k in SIZE_MAP if k in parts), 'T')
-    code += next((COVER_MAP[k] for k in COVER_MAP if k in parts), 'MM')
-    exclude = set(TYPE_MAP) | set(SUPPLIER_MAP) | set(PROPERTY_MAP) | set(STANDARD_MAP) | set(SIZE_MAP) | set(COVER_MAP) | set(FILM_MAP) | {'MINE'}
-    candidates = [p for p in parts if p not in exclude and re.fullmatch(r"[A-Z0-9]{3,4}", p)]
-    colors = [clean_color(c) for c in candidates]
+    cover = next((p for p in parts if p in COVER_MAP), '2M')
+    cover_code = 'MX' if cover.startswith('1') else 'MM'
+    code += cover_code
+
+    idx = parts.index('MINE') if 'MINE' in parts else -1
+    colors = []
+    if idx >= 0:
+        for p in parts[idx+1:]:
+            if re.fullmatch(r"\d{1,4}", p):
+                colors.append(clean_color(p))
+                if len(colors) == 2:
+                    break
+
     if not colors:
         code += '00000000'
     elif len(colors) == 1:
-        code += colors[0] + 'XXXX'
+        if cover_code == 'MX':
+            code += colors[0] + 'XXXX'
+        else:
+            code += colors[0] + colors[0]
     else:
-        code += ''.join(colors[:2])
+        code += colors[0] + colors[1]
+
     film_keys = [p for p in parts if p in FILM_MAP]
-    if film_keys:
-        code += FILM_MAP[film_keys[-1]] * 2
+    if cover_code == 'MX':
+        code += FILM_MAP[film_keys[-1]] + 'X' if film_keys else 'TX'
     else:
-        code += 'TT'
+        code += FILM_MAP[film_keys[-1]] * 2 if film_keys else 'TT'
     return code, product_name
 
 def run_gui():
