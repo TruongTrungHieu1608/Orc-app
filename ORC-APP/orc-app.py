@@ -41,25 +41,34 @@ def clean_color(c):
 def extract_laminate_code(parts):
     code = ""
     code += next((v for k, v in TYPE_MAP.items() if k in parts), 'X')
+    
     raw_th = next((p for p in parts if re.fullmatch(r"\d+", p)), '')
     code += convert_thickness(raw_th)
+    
     code += next((SUPPLIER_MAP[p] for p in parts if p in SUPPLIER_MAP), 'XX')
     code += next((PROPERTY_MAP[k] for k in PROPERTY_MAP if k in parts), 'A')
     code += next((STANDARD_MAP[k] for k in STANDARD_MAP if k in parts), '1')
     code += next((SIZE_MAP[k] for k in SIZE_MAP if k in parts), 'T')
-    cover = next((p for p in parts if p in COVER_MAP), '2M')
-    cover_code = 'LX' if cover.startswith('1') else 'LL'
+
+    # ======= Lớp phủ ========
+    covers = [p for p in parts if p in COVER_MAP]
+    if len(covers) >= 2:
+        cover_code = 'LL'
+    elif len(covers) == 1:
+        cover_code = 'LX' if covers[0].startswith('1') else 'LL'
+    else:
+        cover_code = 'LL'
     code += cover_code
 
-    idx = parts.index('LAMINATE') if 'LAMINATE' in parts else -1
+    # ======= Màu sắc ========
     colors = []
-    if idx >= 0:
-        for p in parts[idx+1:]:
-            if re.fullmatch(r"\d{1,4}", p):
-                colors.append(clean_color(p))
-                if len(colors) == 2:
-                    break
-
+    for i, p in enumerate(parts):
+        if p == 'LAMINATE':
+            for j in range(i+1, len(parts)):
+                if re.fullmatch(r"\d{1,4}", parts[j]):
+                    colors.append(clean_color(parts[j]))
+                    if len(colors) == 2:
+                        break
     if not colors:
         code += '00000000'
     elif len(colors) == 1:
@@ -67,61 +76,147 @@ def extract_laminate_code(parts):
     else:
         code += colors[0] + colors[1]
 
-    film = next((p for p in reversed(parts) if p in FILM_MAP), None)
+    # ======= Bề mặt film ========
+    films = [p for p in parts if p in FILM_MAP]
     if cover_code == 'LX':
-        code += FILM_MAP[film] + 'X' if film else 'TX'
+        film_code = FILM_MAP[films[-1]] + 'X' if films else 'TX'
     else:
-        code += FILM_MAP[film] * 2 if film else 'TT'
+        if len(films) >= 2:
+            film_code = FILM_MAP[films[0]] + FILM_MAP[films[1]]
+        elif len(films) == 1:
+            film_code = FILM_MAP[films[0]] * 2
+        else:
+            film_code = 'TT'
+    code += film_code
+
     return code
 
+# Hàm xử lý bề mặt Mine + Màu 
+def extract_melamine_code(parts):
+    code = ""
 
-def extract_code_from_text(text):
-    txt = re.sub(r"[^A-Z0-9\. ]", " ", text.upper())
-    parts = txt.split()
-    for i in range(len(parts)-1):
-        if parts[i] == 'HMR' and parts[i+1] == '1':
-            parts[i+1] = 'E1'
-    product_name = ' '.join(parts)
-    if 'LAMINATE' in parts:
-        return extract_laminate_code(parts), product_name
-
-    code = ''
+    # ======= Loại ván + độ dày ========
     code += next((v for k, v in TYPE_MAP.items() if k in parts), 'X')
     raw_th = next((p for p in parts if re.fullmatch(r"\d+(\.\d+)?", p)), '')
     code += convert_thickness(raw_th)
+
+    # ======= NCC + thuộc tính + tiêu chuẩn + khổ ========
     code += next((SUPPLIER_MAP[p] for p in parts if p in SUPPLIER_MAP), 'XX')
     code += next((PROPERTY_MAP[k] for k in PROPERTY_MAP if k in parts), 'A')
     code += next((STANDARD_MAP[k] for k in STANDARD_MAP if k in parts), '1')
     code += next((SIZE_MAP[k] for k in SIZE_MAP if k in parts), 'T')
-    cover = next((p for p in parts if p in COVER_MAP), '2M')
-    cover_code = 'MX' if cover.startswith('1') else 'MM'
+
+    # ======= Lớp phủ ========
+    covers = [p for p in parts if p in COVER_MAP]
+    if len(covers) >= 2:
+        cover_code = 'MM'
+    elif len(covers) == 1:
+        cover_code = 'MX' if covers[0].startswith('1') else 'MM'
+    else:
+        cover_code = 'MM'
     code += cover_code
 
-    idx = parts.index('MINE') if 'MINE' in parts else -1
+    # ======= Màu sắc (sau từ "MINE") ========
     colors = []
-    if idx >= 0:
-        for p in parts[idx+1:]:
-            if re.fullmatch(r"\d{1,4}", p):
-                colors.append(clean_color(p))
-                if len(colors) == 2:
-                    break
-
+    for i, p in enumerate(parts):
+        if p == 'MINE':
+            for j in range(i + 1, len(parts)):
+                if re.fullmatch(r"\d{1,4}", parts[j]):
+                    colors.append(clean_color(parts[j]))
+                    if len(colors) == 2:
+                        break
     if not colors:
         code += '00000000'
     elif len(colors) == 1:
-        if cover_code == 'MX':
-            code += colors[0] + 'XXXX'
-        else:
-            code += colors[0] + colors[0]
+        code += colors[0] + 'XXXX' if cover_code == 'MX' else colors[0] + colors[0]
     else:
         code += colors[0] + colors[1]
 
-    film_keys = [p for p in parts if p in FILM_MAP]
+    # ======= Bề mặt film ========
+    films = [p for p in parts if p in FILM_MAP]
     if cover_code == 'MX':
-        code += FILM_MAP[film_keys[-1]] + 'X' if film_keys else 'TX'
+        film_code = FILM_MAP[films[-1]] + 'X' if films else 'TX'
     else:
-        code += FILM_MAP[film_keys[-1]] * 2 if film_keys else 'TT'
-    return code, product_name
+        if len(films) >= 2:
+            film_code = FILM_MAP[films[0]] + FILM_MAP[films[1]]
+        elif len(films) == 1:
+            film_code = FILM_MAP[films[0]] * 2
+        else:
+            film_code = 'TT'
+    code += film_code
+
+    return code
+
+
+# Lỗi hàm xử lý trường hợp 1 mặt Late 1 mặt Mine
+def extract_mixed_code(parts):
+    code = ""
+
+    # ===== Loại ván + độ dày =====
+    code += next((v for k, v in TYPE_MAP.items() if k in parts), 'X')
+    raw_th = next((p for p in parts if re.fullmatch(r"\d+(\.\d+)?", p)), '')
+    code += convert_thickness(raw_th)
+
+    # Tạm gán NCC
+    code += 'XX'
+
+    # ===== Thuộc tính, tiêu chuẩn, size =====
+    code += next((PROPERTY_MAP[k] for k in PROPERTY_MAP if k in parts), 'A')
+    code += next((STANDARD_MAP[k] for k in STANDARD_MAP if k in parts), '1')
+    code += next((SIZE_MAP[k] for k in SIZE_MAP if k in parts), 'T')
+
+    # Lớp phủ hỗn hợp → sẽ là 'ML' hoặc 'LM' tùy mã màu
+    cover_code = 'ML'  # placeholder
+    code += cover_code
+
+    # ===== Tìm mã màu melamine & laminate =====
+    color_mine = '0000'
+    color_late = '0000'
+    for i, p in enumerate(parts):
+        if p == 'MINE':
+            for j in range(i+1, len(parts)):
+                if re.fullmatch(r'\d{1,4}', parts[j]):
+                    color_mine = clean_color(parts[j])
+                    break
+        if p == 'LAMINATE':
+            for j in range(i+1, len(parts)):
+                if re.fullmatch(r'\d{1,4}', parts[j]):
+                    color_late = clean_color(parts[j])
+                    break
+
+    # ===== Chọn NCC dựa trên so sánh mã màu =====
+    supplier_code = 'ML' if color_mine < color_late else 'LM'
+    code = code[:4] + supplier_code + code[6:]  # gắn vào vị trí NCC
+    code = code[:10] + supplier_code  # gắn lại cover_code (ML hoặc LM)
+
+    # ===== Mã màu: MINE + 'X' + LAMINATE =====
+    code += color_mine + color_late
+
+    # ===== Film =====
+    film_mine = next((FILM_MAP[parts[i+1]] for i, p in enumerate(parts) if p == 'MINE' and i+1 < len(parts) and parts[i+1] in FILM_MAP), 'T')
+    film_late = next((FILM_MAP[parts[i+1]] for i, p in enumerate(parts) if p == 'LAMINATE' and i+1 < len(parts) and parts[i+1] in FILM_MAP), 'X')
+    code += film_mine + film_late
+
+    return code
+
+def extract_code_from_text(text):
+    txt = re.sub(r"[^A-Z0-9\. ]", " ", text.upper())
+    parts = txt.split()
+
+    for i in range(len(parts) - 1):
+        if parts[i] == 'HMR' and parts[i + 1] == '1':
+            parts[i + 1] = 'E1'
+
+    product_name = ' '.join(parts)
+
+    if 'LAMINATE' in parts and 'MINE' in parts:
+        return extract_mixed_code(parts), product_name
+    elif 'LAMINATE' in parts:
+        return extract_laminate_code(parts), product_name
+    elif 'MINE' in parts:
+        return extract_melamine_code(parts), product_name
+    else:
+        return 'INVALID', product_name  # hoặc fallback khác tùy anh
 
 def run_gui():
     def get_clipboard_image():
